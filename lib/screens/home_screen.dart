@@ -1,13 +1,127 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 import 'allDocuments_screen.dart';
 import 'createInvoice_screen.dart';
 import 'createDocuments_screen.dart'; // Importa la pantalla CreateDocumentsScreen
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final Map<String, dynamic>? company;
 
   HomeScreen({this.company});
+
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+  double _facturasTotal = 0.0; // Variable para almacenar el total de las facturas
+  String _selectedFilter = 'Hoy'; // Filtro seleccionado
+
+  // Obtén el companyId
+  int get companyId => widget.company?['id'] ?? 0;
+
+  final List<Widget> _pages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchFacturasTotal(); // Llama a la función para obtener el total de las facturas
+  }
+
+  Future<void> _fetchFacturasTotal() async {
+    try {
+      double total = await fetchFacturasTotal(_selectedFilter);
+      setState(() {
+        _facturasTotal = total;
+      });
+    } catch (e) {
+      // Maneja el error de acuerdo a tus necesidades, por ejemplo, mostrando un mensaje al usuario
+      print('Error fetching facturas total: $e');
+    }
+  }
+
+  Future<double> fetchFacturasTotal(String filter) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token') ?? '';
+
+    try {
+      final response = await http.get(
+        Uri.parse('http://192.168.100.34:8000/api/v1/company/${widget.company?['id']}/documentos'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        try {
+          final data = json.decode(response.body);
+
+          if (data is Map<String, dynamic> && data.containsKey('facturas')) {
+            List<dynamic> facturas = data['facturas'];
+
+            DateTime now = DateTime.now();
+            DateTime startDate;
+            DateTime endDate;
+
+            switch (filter) {
+              case 'Hoy':
+                startDate = DateTime(now.year, now.month, now.day); // Inicio del día actual
+                endDate = startDate.add(Duration(days: 1)); // Fin del día actual (inicio del próximo día)
+                break;
+              case 'Este mes':
+                startDate = DateTime(now.year, now.month, 1); // Inicio del mes actual
+                endDate = DateTime(now.year, now.month + 1, 1); // Inicio del próximo mes
+                break;
+              case 'Anual':
+                startDate = DateTime(now.year, 1, 1); // Inicio del año actual
+                endDate = DateTime(now.year + 1, 1, 1); // Inicio del próximo año
+                break;
+              default:
+                startDate = DateTime.now().subtract(Duration(days: 365)); // Default to last year
+                endDate = DateTime.now(); // Fin del rango por defecto
+                break;
+            }
+
+            // Filtrar las facturas según la fecha
+            facturas = facturas.where((factura) {
+              DateTime fechaFactura = DateTime.parse(factura['fecha'].toString());
+              return fechaFactura.isAfter(startDate) && fechaFactura.isBefore(endDate);
+            }).toList();
+
+            // Ordenar las facturas por ID en orden descendente
+            facturas.sort((a, b) {
+              int idA = int.parse(a['id'].toString());
+              int idB = int.parse(b['id'].toString());
+              return idB.compareTo(idA); // Ordena de forma descendente
+            });
+
+            // Calcular la suma total de los montos
+            double total = facturas.fold(0.0, (sum, factura) {
+              return sum + (double.tryParse(factura['total'].toString()) ?? 0.0);
+            });
+
+            return total;
+          } else {
+            throw Exception('Invalid JSON structure: Missing "facturas" key');
+          }
+        } catch (e) {
+          print('Failed to parse JSON: $e');
+          throw Exception('Failed to parse JSON');
+        }
+      } else {
+        print('Failed to load documents: ${response.statusCode}');
+        throw Exception('Failed to load documents');
+      }
+    } catch (e) {
+      print('Error fetching facturas: $e');
+      throw Exception('Failed to load documents');
+    }
+  }
 
   Future<void> _logout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
@@ -18,203 +132,296 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final company = widget.company;
     final companyName = company?['nombre_comercial'] ?? 'Unknown Company';
-    final companyRUC = company?['ruc'] ?? 'Unknown RUC';
-    final companyId = company?['id'] ?? 0; // Asume que el ID de la compañía está en el mapa
-    final companyEmail = company?['email'] ?? 'Unknown Email'; // Asume que el email de la compañía está en el mapa
+    final companyEmail = company?['email'] ?? 'Unknown Email';
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.blueGrey[800], // Color de fondo más moderno
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.white,
         title: Text(
-          'Inicio',
+          companyName,
           style: TextStyle(
-            color: Colors.white,
+            color: Colors.black,
             fontWeight: FontWeight.bold,
-            fontSize: 22,
+            fontSize: 20,
           ),
         ),
-        elevation: 4,
+        elevation: 0,
       ),
-      drawer: Drawer(
-        child: Column(
-          children: [
-            UserAccountsDrawerHeader(
-              accountName: Text(
-                companyName, // Muestra el nombre comercial aquí
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              accountEmail: Text(
-                companyEmail, // Muestra el email aquí
-              ),
-              currentAccountPicture: CircleAvatar(
-                backgroundImage: AssetImage('assets/images/profile.png'),
-              ),
-              decoration: BoxDecoration(
-                color: Colors.blueGrey[800],
-              ),
-            ),
-            ListTile(
-              leading: Icon(Icons.business, color: Colors.blueGrey[800]),
-              title: Text('Seleccionar Compañía'),
-              onTap: () {
-                Navigator.pushNamed(context, '/selectCompany');
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.logout, color: Colors.blueGrey[800]),
-              title: Text('Cerrar Sesión'),
-              onTap: () {
-                Navigator.pop(context);
-                _logout(context);
-              },
-            ),
-          ],
-        ),
-      ),
-      body: Padding(
+      body: Container(
+        color: Colors.white,
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    companyName,
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blueGrey[900],
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'RUC: $companyRUC',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.blueGrey[600],
-                    ),
-                  ),
-                ],
+            // Título "Acciones Rápidas"
+            Text(
+              'Acciones rápidas',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: const Color.fromARGB(255, 0, 0, 0),
               ),
             ),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                children: [
-                  _buildActionCard(
-                    context,
-                    'Nueva Factura',
-                    Icons.file_copy,
-                    Colors.blue,
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CreateInvoiceScreen(companyId: companyId),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildActionCard(
-                    context,
-                    'Nuevo Recibo',
-                    Icons.receipt,
-                    Colors.orange,
-                    () {
-                      // Lógica para nuevo recibo
-                    },
-                  ),
-                  _buildActionCard(
-                    context,
-                    'Nueva Proforma',
-                    Icons.description,
-                    Colors.green,
-                    () {
-                      // Lógica para nueva proforma
-                    },
-                  ),
-                  _buildActionCard(
-                    context,
-                    'Historial',
-                    Icons.history,
-                    Colors.teal,
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AllDocumentsScreen(companyId: companyId),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+            SizedBox(height: 16), // Espacio entre el título y el carrusel de íconos
+            // Sección de íconos horizontales tipo historias de IG
+            SizedBox(
+              height: 100,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildStoryIcon(
+                      context,
+                      'Factura',
+                      Icons.file_copy_outlined,
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CreateInvoiceScreen(companyId: companyId),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildStoryIcon(
+                      context,
+                      'Recibo',
+                      Icons.receipt_outlined,
+                      () {
+                        // Navegar a la pantalla de recibo
+                      },
+                    ),
+                    _buildStoryIcon(
+                      context,
+                      'Otros',
+                      Icons.description_outlined,
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CreateDocumentsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildStoryIcon(
+                      context,
+                      'Historial',
+                      Icons.history_outlined,
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AllDocumentsScreen(companyId: companyId),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
+            SizedBox(height: 16), // Espacio entre el carrusel y la tarjeta de facturas
+            // Tarjeta para mostrar el total de las facturas
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Filtro por fechas
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Total de Facturas',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: const Color.fromARGB(255, 0, 0, 0),
+                          ),
+                        ),
+                        DropdownButton<String>(
+                          value: _selectedFilter,
+                          items: <String>['Hoy', 'Este mes', 'Anual'].map((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          }).toList(),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              _selectedFilter = newValue!;
+                              _fetchFacturasTotal(); // Actualiza el total con el nuevo filtro
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 16), // Espacio entre el filtro y el total de facturas
+                    Container(
+                      width: double.infinity, // Hace que el contenedor ocupe todo el ancho
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '\$$_facturasTotal',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 16), // Espacio entre la tarjeta de facturas y la tarjeta de tareas
+            // Tarjeta de tareas
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tareas',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color.fromARGB(255, 0, 0, 0),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    // Aquí puedes agregar contenido relacionado con las tareas
+                    Text(
+                      'Aquí puedes agregar contenido relacionado con las tareas...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+         
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CreateDocumentsScreen(),
-            ),
-          );
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+            // Navegar a la página correspondiente
+            if (index == 0) {
+              Navigator.pushReplacementNamed(context, '/home');
+            } else if (index == 1) {
+              Navigator.pushReplacementNamed(context, '/menu');
+            }
+          });
         },
-        child: Icon(Icons.add, color: Colors.white),
-        backgroundColor: Colors.blueGrey[800],
-        elevation: 6,
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.black,
+        items: [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu),
+            label: 'Menu',
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildActionCard(
-    BuildContext context,
-    String label,
-    IconData icon,
-    Color color,
-    VoidCallback onPressed,
-  ) {
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: 8.0),
-      elevation: 6,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
-      ),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(12.0),
-        child: Center( // Centra el contenido vertical y horizontalmente
-          child: Container(
-            padding: EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center, // Centra verticalmente
-              crossAxisAlignment: CrossAxisAlignment.center, // Centra horizontalmente
-              children: [
-                Icon(icon, size: 50, color: color), // Aumenta el tamaño del icono
-                SizedBox(height: 12),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.blueGrey[800],
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+  
+Widget _buildStoryIcon(
+  BuildContext context,
+  String label,
+  IconData icon,
+  VoidCallback onPressed,
+) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20.0), // Aumenta el espacio entre íconos
+    child: Stack(
+      clipBehavior: Clip.none, // Permite que el ícono verde sobresalga del contenedor
+      children: [
+        InkWell(
+          onTap: onPressed,
+          child: Column(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white, // Fondo blanco para los íconos
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.5), // Color y opacidad de la sombra
+                      spreadRadius: 2, // Expansión de la sombra
+                      blurRadius: 4, // Difuminado de la sombra
+                      offset: Offset(0, 3), // Desplazamiento de la sombra
+                    ),
+                  ],
                 ),
-              ],
+                child: CircleAvatar(
+                  radius: 35,
+                  backgroundColor: Colors.white, // Fondo blanco para el ícono
+                  child: Icon(icon, size: 30, color: Colors.black), // Íconos en negro
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueGrey[700],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          bottom: 23,
+          right: 3,
+          child: Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Colors.green, // Color de fondo verde
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.add,
+              size: 16,
+              color: Colors.white, // Color del ícono en blanco
             ),
           ),
         ),
-      ),
-    );
+      ],
+    ),
+  );
   }
 }

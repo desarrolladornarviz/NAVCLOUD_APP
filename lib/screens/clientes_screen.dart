@@ -14,6 +14,8 @@ class ClientesScreen extends StatefulWidget {
 
 class _ClientesScreenState extends State<ClientesScreen> {
   late Future<List<dynamic>> _clientes;
+  List<dynamic> _filteredClientes = [];
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -53,6 +55,25 @@ class _ClientesScreenState extends State<ClientesScreen> {
     }
   }
 
+  void _filterClientes(String query) {
+    setState(() {
+      _searchQuery = query;
+    });
+    // Filter the clients based on the search query
+    _clientes.then((clientes) {
+      setState(() {
+        _filteredClientes = clientes
+            .where((cliente) {
+              final razonSocial = cliente['razon_social']?.toLowerCase() ?? '';
+              final email = cliente['email']?.toLowerCase() ?? '';
+              final searchQuery = _searchQuery.toLowerCase();
+              return razonSocial.contains(searchQuery) || email.contains(searchQuery);
+            })
+            .toList();
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -64,6 +85,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
             onPressed: () {
               setState(() {
                 _clientes = fetchClientes(); // Actualizar la lista al presionar el ícono
+                _filterClientes(_searchQuery); // Aplicar el filtro de búsqueda actual
               });
             },
           ),
@@ -71,40 +93,57 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0), // Añadir padding alrededor del contenido
-        child: FutureBuilder<List<dynamic>>(
-          future: _clientes,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Center(child: Text('No hay clientes disponibles', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)));
-            } else {
-              return ListView.builder(
-                itemCount: snapshot.data!.length,
-                itemBuilder: (context, index) {
-                  final cliente = snapshot.data![index];
-                  return Card(
-                    margin: EdgeInsets.symmetric(vertical: 8.0),
-                    elevation: 4.0,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.all(16.0),
-                      leading: Icon(Icons.person, size: 40.0, color: Colors.blueGrey), // Ícono de persona
-                      title: Text(
-                        cliente['razon_social'] ?? 'Nombre no disponible',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(cliente['email'] ?? 'Email no disponible'),
-                      onTap: () {
-                        Navigator.pop(context, cliente); // Regresar el cliente seleccionado a la pantalla anterior
+        child: Column(
+          children: [
+            TextField(
+              decoration: InputDecoration(
+                labelText: 'Buscar clientes',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (query) {
+                _filterClientes(query);
+              },
+            ),
+            SizedBox(height: 16), // Espacio entre el campo de búsqueda y la lista
+            Expanded(
+              child: FutureBuilder<List<dynamic>>(
+                future: _clientes,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return Center(child: Text('No hay clientes disponibles', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)));
+                  } else {
+                    return ListView.builder(
+                      itemCount: _filteredClientes.isEmpty ? snapshot.data!.length : _filteredClientes.length,
+                      itemBuilder: (context, index) {
+                        final cliente = _filteredClientes.isEmpty ? snapshot.data![index] : _filteredClientes[index];
+                        return Card(
+                          margin: EdgeInsets.symmetric(vertical: 8.0),
+                          elevation: 4.0,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.all(16.0),
+                            leading: Icon(Icons.person, size: 40.0, color: Colors.blueGrey), // Ícono de persona
+                            title: Text(
+                              cliente['razon_social'] ?? 'Nombre no disponible',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Text(cliente['email'] ?? 'Email no disponible'),
+                            onTap: () {
+                              Navigator.pop(context, cliente); // Regresar el cliente seleccionado a la pantalla anterior
+                            },
+                          ),
+                        );
                       },
-                    ),
-                  );
+                    );
+                  }
                 },
-              );
-            }
-          },
+              ),
+            ),
+          ],
         ),
       ),
     );
