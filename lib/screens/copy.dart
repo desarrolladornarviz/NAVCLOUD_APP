@@ -2,776 +2,408 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'clientes_screen.dart';
-import 'createProducts_screen.dart';
-import 'allDocuments_screen.dart';
+import 'invoiceDetail_screen.dart'; // Asegúrate de importar el archivo correcto
 
-class CreateInvoiceScreen extends StatefulWidget {
+
+class AllDocumentsScreen extends StatefulWidget {
   final int companyId;
-  final Map<String, dynamic>? producto;
+  
 
-  CreateInvoiceScreen({required this.companyId, this.producto});
+  AllDocumentsScreen({required this.companyId});
 
   @override
-  _CreateInvoiceScreenState createState() => _CreateInvoiceScreenState();
+  _AllDocumentsScreenState createState() => _AllDocumentsScreenState();
 }
 
-class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _establecimientoController = TextEditingController();
-  final _puntoEmisionController = TextEditingController();
-  final _secuencialController = TextEditingController();
-  final _fechaController = TextEditingController();
-  final _subtotalController = TextEditingController();
-  final _totalController = TextEditingController();
-  final _razonSocialController = TextEditingController();
-  final _direccionController = TextEditingController();
-  final _telefonoController = TextEditingController();
-  final _productosController = TextEditingController();
-  final _formaPagoController = TextEditingController();
-  final _informacionAdicionalController = TextEditingController();
-  final _correoController = TextEditingController();
-  final _identificacionController = TextEditingController();
-
-  List<Map<String, dynamic>> _puntosDeEmision = [];
-  String? _puntoEmisionSeleccionado;
-  List<Map<String, dynamic>> _establecimientos = [];
-  String? _establecimientoSeleccionado;
-  List<Map<String, dynamic>> _productos = [];
-  List<Map<String, dynamic>> _metodosDePago = [];
-  Map<String, dynamic>? _metodoDePagoSeleccionado;
+class _AllDocumentsScreenState extends State<AllDocumentsScreen> {
+  late Future<List<dynamic>> _facturas;
+  List<dynamic> _facturasList = [];
+  List<dynamic> _filteredFacturas = [];
+  bool _isSearching = false;
+  TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _fetchNumeroFacturaData();
-    _fetchMetodosDePago();
+    _facturas = fetchFacturas();
+    _searchController.addListener(_onSearchChanged);
   }
-
-  @override
-  void dispose() {
-    _establecimientoController.dispose();
-    _puntoEmisionController.dispose();
-    _secuencialController.dispose();
-    _fechaController.dispose();
-    _subtotalController.dispose();
-    _totalController.dispose();
-    _razonSocialController.dispose();
-    _direccionController.dispose();
-    _telefonoController.dispose();
-    _productosController.dispose();
-    _formaPagoController.dispose();
-    _informacionAdicionalController.dispose();
-    _correoController.dispose();
-    _identificacionController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _fetchMetodosDePago() async {
+Future<void> deleteFactura(int facturaId) async {
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('access_token') ?? '';
-  final url = 'http://192.168.100.34:8000/api/v1/metodos';
 
-  try {
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+  final response = await http.delete(
+    Uri.parse('http://192.168.100.34:8000/api/v1/factura/$facturaId'),
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+  );
 
-    print('Response status: ${response.statusCode}');
-    print('Response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      print('Decoded data: $data'); // Mostrar datos decodificados
-
-      final List<Map<String, dynamic>> metodosDePago = List<Map<String, dynamic>>.from(data);
-
-      setState(() {
-        _metodosDePago = metodosDePago;
-        _metodoDePagoSeleccionado = _metodosDePago.isNotEmpty ? _metodosDePago[0] : null;
-      });
-    } else {
-      print('Error en la solicitud: ${response.statusCode}');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al obtener los métodos de pago')),
-      );
-    }
-  } catch (e) {
-    print('Excepción capturada: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error al obtener los métodos de pago')),
-    );
+  if (response.statusCode == 200) {
+    print('Factura eliminada exitosamente');
+    print('Response body: ${response.body}'); // Imprime el contenido de la respuesta
+  } else {
+    print('Error al eliminar factura: ${response.statusCode}');
+    print('Response body: ${response.body}'); // Imprime el contenido de la respuesta
   }
 }
 
 
-  Future<void> _fetchNumeroFacturaData() async {
+
+
+  
+Future<List<dynamic>> fetchFacturas() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token') ?? '';
-    final url = 'http://192.168.100.34:8000/api/v1/numero-factura/${widget.companyId}';
 
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final List<Map<String, dynamic>> puntosDeEmision = List<Map<String, dynamic>>.from(data['puntosDeEmision']);
-      final List<Map<String, dynamic>> establecimientos = List<Map<String, dynamic>>.from(data['establecimientos']);
-
-      setState(() {
-        _establecimientoController.text = data['establecimientos'][0]['codigo_establecimiento'] ?? '';
-        _puntosDeEmision = puntosDeEmision;
-        _establecimientos = establecimientos;
-        _puntoEmisionSeleccionado = _puntosDeEmision.isNotEmpty ? _puntosDeEmision[0]['codigo'] as String : null;
-        _establecimientoSeleccionado = _establecimientos.isNotEmpty ? _establecimientos[0]['codigo_establecimiento'] as String : null;
-
-        if (_establecimientoSeleccionado != null) {
-          final establecimientosSeleccionado = _establecimientos.firstWhere(
-            (punto) => punto['codigo'] == _establecimientoSeleccionado,
-            orElse: () => {'secuencial_factura': 0}, // Valor predeterminado
-          );
-          final int secuencialFactura = establecimientosSeleccionado['secuencial_factura'] ?? 0;
-          _puntoEmisionController.text = (secuencialFactura + 1).toString().padLeft(10, '0');
-        }
-
-        if (_puntoEmisionSeleccionado != null) {
-          final puntoSeleccionado = _puntosDeEmision.firstWhere(
-            (punto) => punto['codigo'] == _puntoEmisionSeleccionado,
-            orElse: () => {'secuencial_factura': 0}, // Valor predeterminado
-          );
-          final int secuencialFactura = puntoSeleccionado['secuencial_factura'] ?? 0;
-          _secuencialController.text = (secuencialFactura + 1).toString().padLeft(10, '0');
-        }
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al obtener los datos de la factura')),
-      );
-    }
-  }
-
-  Future<void> _selectDate(BuildContext context) async {
-    DateTime currentDate = DateTime.now();
-    DateTime? selectedDate = await showDatePicker(
-      context: context,
-      initialDate: currentDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-    );
-
-    if (selectedDate != null && selectedDate != currentDate) {
-      setState(() {
-        _fechaController.text = '${selectedDate.toLocal()}'.split(' ')[0];
-      });
-    }
-  }
-
-  Future<void> _showConfirmationDialog() async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false, // Evita que el usuario cierre el diálogo al tocar fuera de él
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Confirmación'),
-          content: Text('¿Estás seguro de que quieres crear esta factura?'),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancelar'),
-              onPressed: () {
-                Navigator.of(context).pop(); // Cierra el diálogo sin hacer nada
-              },
-            ),
-            TextButton(
-              child: Text('Confirmar'),
-              onPressed: () async {
-                Navigator.of(context).pop(); // Cierra el diálogo
-                await _createInvoice(); // Llama a la función para crear la factura
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-  Future<void> _createInvoice() async {
-  if (_formKey.currentState!.validate()) {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token') ?? '';
-
-      final numeroDocumento = '${_establecimientoController.text}-${_puntoEmisionSeleccionado}-${_secuencialController.text}';
-
-      if (_razonSocialController.text.isEmpty ||
-          _identificacionController.text.isEmpty ||
-          _correoController.text.isEmpty ||
-          _direccionController.text.isEmpty ||
-          _telefonoController.text.isEmpty ||
-          _metodoDePagoSeleccionado == null ||
-          _productos.isEmpty) {
-        throw Exception('Todos los campos del cliente y los detalles de la factura deben ser completados.');
-      }
-
-      final body = json.encode({
-        'factura': {
-          'cliente_nombre': _razonSocialController.text,
-          'cliente_identificacion': _identificacionController.text,
-          'cliente_email': _correoController.text,
-          'cliente_direccion': _direccionController.text,
-          'cliente_telefono': _telefonoController.text,
-          'numero_documento': numeroDocumento,
-          'fecha': _fechaController.text,
-          'metodo_pago_id': _metodoDePagoSeleccionado?['id'] ?? '',
-          'observaciones': _informacionAdicionalController.text.isNotEmpty ? _informacionAdicionalController.text : null,
-          'cuenta_sri_id': widget.companyId, // Asegúrate de que widget.companyId sea el tipo correcto
-        },
-        'factura_detalle': _productos.map((producto) => {
-          'cantidad': double.tryParse(producto['cantidad'].toString()) ?? 0.0,
-          'producto_id': producto['id'].toString(),
-          'producto_nombre': producto['nombre'],
-          'precio_unitario': double.tryParse(producto['precio_unitario'].toString()) ?? 0.0,
-          'iva': double.tryParse(producto['iva']?.toString() ?? '0') ?? 0.0,
-          'ice': double.tryParse(producto['ice']?.toString() ?? '0') ?? 0.0,
-          'descuento_porcentaje': double.tryParse(producto['descuento']?.toString() ?? '0') ?? 0.0,
-        }).toList(),
-      });
-
-      print('Request URL: http://192.168.100.34:8000/api/v1/factura-app/create');
-      print('Request Headers:');
-      print({
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      });
-      print('Request Body: $body');
-
-      final response = await http.post(
-        Uri.parse('http://192.168.100.34:8000/api/v1/factura-app/create'),
+      final response = await http.get(
+        Uri.parse('http://192.168.100.34:8000/api/v1/company/${widget.companyId}/documentos'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: body,
       );
 
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+      if (response.statusCode == 200) {
+        try {
+          final data = json.decode(response.body);
 
-      if (response.statusCode == 201) {
-        // Mostrar mensaje de éxito
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Factura creada exitosamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
+          if (data is Map<String, dynamic> && data.containsKey('facturas')) {
+            List<dynamic> facturas = data['facturas'];
 
-        // Redirigir a la pantalla allDocuments
-        // Redirigir a la pantalla allDocuments con parámetros
-        Future.delayed(Duration(seconds: 1), () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AllDocumentsScreen(companyId: widget.companyId),
-            ),
-          );
-        });
-        
+            /* Imprimir todos los atributos de cada factura incluyendo permisos */
+            for (var factura in facturas) {
+              print('Factura:');
+              factura.forEach((key, value) {
+                print('$key: $value');
+              });
+
+              // Imprimir los permisos si existen
+              print('Permisos:');
+              
+              print('PERMISO_EDITAR: ${factura['PERMISO_EDITAR']}');
+              print('PERMISO_ELIMINAR: ${factura['PERMISO_ELIMINAR']}');
+              print('PERMISO_AUTORIZAR: ${factura['PERMISO_AUTORIZAR']}');
+              print('PERMISO_ENVIAR_MAIL: ${factura['PERMISO_ENVIAR_MAIL']}');
+              print(''); // Línea en blanco para separar las facturas
+            }
+
+            // Ordenar las facturas por ID
+            facturas.sort((a, b) {
+              int idA = int.parse(a['id'].toString());
+              int idB = int.parse(b['id'].toString());
+              return idB.compareTo(idA);
+            });
+
+            setState(() {
+              _facturasList = facturas;
+              _filteredFacturas = facturas;
+            });
+
+            return facturas;
+          } else {
+            throw Exception('Invalid JSON structure: Missing "facturas" key');
+          }
+        } catch (e) {
+          print('Failed to parse JSON: $e');
+          throw Exception('Failed to parse JSON');
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear la factura: ${response.body}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        print('Failed to load documents: ${response.statusCode}');
+        throw Exception('Failed to load documents');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ocurrió un error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-}
-
-
-
-
-Future<void> _selectCliente() async {
-  final selectedCliente = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ClientesScreen(companyId: widget.companyId.toString()),
-    ),
-  );
-
-  if (selectedCliente != null) {
-    print('Selected Cliente Data: $selectedCliente'); // Imprime toda la información del cliente
-
-    setState(() {
-      _razonSocialController.text = selectedCliente['razon_social'] ?? '';
-      _direccionController.text = selectedCliente['direccion'] ?? '';  
-      _telefonoController.text = selectedCliente['telefono'] ?? '';
-      _correoController.text = selectedCliente['email'] ?? '';
-      _identificacionController.text = selectedCliente['identificacion'] ?? '';
-    });
-  }
-}
-
-
-  Future<void> _selectProducto() async {
-    final productoSeleccionado = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CreateProductsScreen(companyId: widget.companyId),
-      ),
-    );
-
-    if (productoSeleccionado != null) {
-      setState(() {
-        _productos.add(productoSeleccionado); // Agregar el producto seleccionado
-      });
+      print('Error fetching facturas: $e');
+      throw Exception('Failed to load documents');
     }
   }
 
-   String _productosToString() {
-    return _productos.map((producto) {
-      return '${producto['nombre']} - ${producto['precio']}';
-    }).join('\n');
-  }
 
-  void _agregarProducto(Map<String, dynamic> producto) {
+  void _onSearchChanged() {
     setState(() {
-      _productos.add(producto);
+      _filteredFacturas = _facturasList.where((invoice) {
+        return invoice['numero_documento'].toLowerCase().contains(_searchController.text.toLowerCase()) ||
+               invoice['cliente_nombre'].toLowerCase().contains(_searchController.text.toLowerCase());
+      }).toList();
     });
   }
-  void _removeProducto(Map<String, dynamic> producto) {
-  setState(() {
-    _productos.remove(producto);
-  });
-}
-double _calculateTotal() {
-  double total = 0.0;
-  for (var producto in _productos) {
-    total += producto['total'];
-  }
-  return total;
-}
 
   @override
-   Widget build(BuildContext context) {
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Color getColorForStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'creada':
+        return const Color.fromARGB(255, 45, 81, 243);
+      case 'autorizado':
+        return Colors.green;
+      case 'no autorizado':
+      case 'rechazada':
+        return Colors.red;
+      default:
+        return Colors.grey; // Color predeterminado si el estado no coincide
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Crear Nueva Factura'),
-        backgroundColor: const Color.fromARGB(255, 33, 181, 255),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              ExpansionTile(
-                title: Row(
-                  children: [
-                    Icon(Icons.receipt, color: Colors.blue),
-                    SizedBox(width: 8),
-                    Text('Factura'),
-                  ],
+        backgroundColor: Colors.blueGrey[900],
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Buscar...',
+                  hintStyle: TextStyle(color: Colors.white70),
+                  border: InputBorder.none,
                 ),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0),
-                    child: Row(
-                      children: [
-                       SizedBox(width: 5),
-                        Flexible(
-                          flex: 2,
-                          child: DropdownButtonFormField<String>(
-                            value: _establecimientoSeleccionado,
-                            items: _establecimientos.map((punto) {
-                              return DropdownMenuItem<String>(
-                                value: punto['codigo_establecimiento'] as String,
-                                child: Align(
-                                  alignment: Alignment.center, // Center the text inside the DropdownMenuItem
-                                  child: Text(
-                                    '${punto['codigo_establecimiento']} - ${punto['nombre']}',
-                                    style: const TextStyle(fontSize: 13, color: Colors.black), // Text styling
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _puntoEmisionSeleccionado = value;
-
-                                // Actualiza el secuencial cuando se selecciona un punto de emisión
-                                final puntoSeleccionado = _puntosDeEmision.firstWhere(
-                                  (punto) => punto['codigo'] == _puntoEmisionSeleccionado,
-                                  orElse: () => {'secuencial_factura': 0},
-                                );
-                                final int secuencialFactura = puntoSeleccionado['secuencial_factura'] ?? 0;
-                                _secuencialController.text = (secuencialFactura + 1).toString().padLeft(10, '0');
-                              });
-                            },
-                            decoration: const InputDecoration(
-                              labelText: 'Punto de Emisión',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(vertical: 12.0), // Adjust padding as needed
-                            ),
-                            style: const TextStyle(fontSize: 12, color: Colors.black), // Text styling
-                            isExpanded: true, // Ensures dropdown takes up full width
-                          ),
-                        ),
-
-                       SizedBox(width: 5),
-                        Flexible(
-                          flex: 2,
-                          child: DropdownButtonFormField<String>(
-                            value: _puntoEmisionSeleccionado,
-                            items: _puntosDeEmision.map((punto) {
-                              return DropdownMenuItem<String>(
-                                value: punto['codigo'] as String,
-                                child: Align(
-                                  alignment: Alignment.center, // Center the text inside the DropdownMenuItem
-                                  child: Text(
-                                    '${punto['codigo']} - ${punto['nombre']}',
-                                    style: const TextStyle(fontSize: 13, color: Colors.black), // Text styling
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _puntoEmisionSeleccionado = value;
-
-                                // Actualiza el secuencial cuando se selecciona un punto de emisión
-                                final puntoSeleccionado = _puntosDeEmision.firstWhere(
-                                  (punto) => punto['codigo'] == _puntoEmisionSeleccionado,
-                                  orElse: () => {'secuencial_factura': 0},
-                                );
-                                final int secuencialFactura = puntoSeleccionado['secuencial_factura'] ?? 0;
-                                _secuencialController.text = (secuencialFactura + 1).toString().padLeft(10, '0');
-                              });
-                            },
-                            decoration: const InputDecoration(
-                              labelText: 'Punto de Emisión',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(vertical: 12.0), // Adjust padding as needed
-                            ),
-                            style: const TextStyle(fontSize: 12, color: Colors.black), // Text styling
-                            isExpanded: true, // Ensures dropdown takes up full width
-                          ),
-                        ),
-
-
-                        SizedBox(width: 8),
-                      SizedBox(
-                        width: 100, // Ajusta el ancho aquí
-                        child: TextFormField(
-                          controller: _secuencialController,
-                          decoration: InputDecoration(
-                            labelText: 'Secuencial',
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(vertical: 12.0),
-                          ),
-                          readOnly: true,
-                          style: TextStyle(fontSize: 14),
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0),
-                    child: TextFormField(
-                      controller: _fechaController,
-                      decoration: InputDecoration(
-                        labelText: 'Fecha',
-                        suffixIcon: IconButton(
-                          icon: Icon(Icons.calendar_today),
-                          onPressed: () => _selectDate(context),
-                        ),
-                        border: OutlineInputBorder(),
-                      ),
-                      readOnly: true,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa la fecha';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
+              )
+            : Text(
+                'Historial de Facturas',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
-              ExpansionTile(
-                      title: Row(
-                        children: [
-                          Icon(Icons.person, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text('Datos del cliente'),
-                        ],
-                      ),
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              GridView.count(
-                                crossAxisCount: 2, // Dos columnas
-                                crossAxisSpacing: 8.0, // Espacio horizontal entre columnas
-                                mainAxisSpacing: 8.0, // Espacio vertical entre filas
-                                shrinkWrap: true, // Ajustar el tamaño del GridView
-                                childAspectRatio: 3 / 1.5, // Relación de aspecto para controlar la altura de los campos
-                                physics: NeverScrollableScrollPhysics(), // Deshabilitar el scroll
-                                children: [
-                                  TextFormField(
-                                    controller: _identificacionController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Identificación',
-                                      alignLabelWithHint: true, // Alinea la etiqueta con la parte superior
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Por favor ingresa la Identificación';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  TextFormField(
-                                    controller: _razonSocialController,
-                                    maxLines: 5, // Aumenta la altura del campo
-                                    decoration: InputDecoration(
-                                      labelText: 'Razón Social',
-                                      alignLabelWithHint: true, // Alinea la etiqueta con la parte superior
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Por favor ingresa la razón social';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  TextFormField(
-                                    controller: _correoController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Correo',
-                                      alignLabelWithHint: true, // Alinea la etiqueta con la parte superior
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Por favor ingresa el Correo';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  TextFormField(
-                                    controller: _direccionController,
-                                    maxLines: 5, // Aumenta la altura del campo
-                                    decoration: InputDecoration(
-                                      labelText: 'Dirección',
-                                      alignLabelWithHint: true, // Alinea la etiqueta con la parte superior
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Por favor ingresa la dirección';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                    TextFormField(
-                                    controller: _telefonoController,
-                                    maxLines: 5, // Aumenta la altura del campo
-                                    decoration: InputDecoration(
-                                      labelText: 'Telefono',
-                                      alignLabelWithHint: true, // Alinea la etiqueta con la parte superior
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Por favor ingresa el Teléfono';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ],
-                              ),
-                             
-                              SizedBox(height: 16.0),
-                                TextButton(
-                                  onPressed: _selectCliente,
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0), // Ajusta el padding para más espacio
-                                    backgroundColor: const Color.fromARGB(255, 38, 74, 233), // Fondo blanco para que el texto resalte
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8.0), // Bordes redondeados
-                                      side: BorderSide(color: Colors.blueAccent, width: 1.5), // Borde azul
-                                    ),
-                                    elevation: 2, // Añade elevación para un efecto de sombra
-                                  ),
-                                  child: Text(
-                                    'Ver Clientes guardados',
-                                    style: TextStyle(
-                                      color: const Color.fromARGB(255, 253, 254, 255), // Color del texto
-                                      fontSize: 13.0, // Tamaño de fuente
-                                      fontWeight: FontWeight.w600, // Peso de fuente más grueso
-                                      decoration: TextDecoration.none, // Sin subrayado
-                                    ),
-                                  ),
-                                ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(_isSearching ? Icons.clear : Icons.search, color: Colors.white),
+            onPressed: () {
+              setState(() {
+                if (_isSearching) {
+                  _searchController.clear();
+                  _filteredFacturas = _facturasList;
+                }
+                _isSearching = !_isSearching;
+              });
+            },
+          ),
+        ],
+        elevation: 0,
+      ),
+      body: FutureBuilder<List<dynamic>>(
+        future: _facturas,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(child: Text('No invoices found'));
+          } else {
+            final facturas = _filteredFacturas;
 
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-              ExpansionTile(
-                        title: Row(
-                          children: [
-                            Icon(Icons.add_box, color: Colors.blue),
-                            SizedBox(width: 8),
-                            Text('Productos'),
-                          ],
-                        ),
+            return ListView.builder(
+              padding: EdgeInsets.all(16.0),
+              itemCount: facturas.length,
+              itemBuilder: (context, index) {
+                final invoice = facturas[index];
+                return Card(
+                  margin: EdgeInsets.symmetric(vertical: 8.0),
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    side: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  child: Stack(
+                    children: [
+                      Column(
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
+                          ListTile(
+                            contentPadding: EdgeInsets.all(16.0),
+                            leading: Icon(
+                              Icons.receipt,
+                              color: Colors.blueGrey[800],
+                            ),
+                            title: Text(
+                              'Número Documento: ${invoice['numero_documento']}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueGrey[800],
+                              ),
+                            ),
+                            subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Productos:',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                                ..._productos.map((producto) => ListTile(
-                                  title: Text('${producto['nombre']}'),
-                                  subtitle: Text(
-                                    'Cantidad: ${producto['cantidad']} - Precio: \$${producto['precio_unitario'].toStringAsFixed(2)} - Total: \$${producto['total'].toStringAsFixed(2)}',
-                                  ),
-                                  trailing: IconButton(
-                                    icon: Icon(Icons.delete, color: Colors.red),
-                                    onPressed: () {
-                                      _removeProducto(producto);
-                                    },
-                                  ),
-                                )).toList(),
-                                SizedBox(height: 20),
-                                // Total del valor de los productos
-                                Text(
-                                  'Valor total: \$${_calculateTotal().toStringAsFixed(2)}',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                                SizedBox(height: 20),
-                                ElevatedButton(
-                                  onPressed: _selectProducto,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueGrey[900],
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: Text('Agregar Producto'),
+                                  'Cliente: ${invoice['cliente_nombre']}',
+                                  style: TextStyle(color: Colors.blueGrey[600]),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
-
-              // Función para calcular el total de los productos
-
-
-              ExpansionTile(
-                      title: Row(
-                        children: [
-                          Icon(Icons.money, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text('Método de Pago'),
-                        ],
-                      ),
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16.0),
-                          child: DropdownButtonFormField(
-                            value: _metodoDePagoSeleccionado?['codigo'],
-                            hint: Text(
-                              'Seleccionar Método de Pago',
-                              style: TextStyle(fontSize: 14, color: Colors.black), // Color negro para el hint
+                            trailing: Text(
+                              'Total: \$${invoice['total'].toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueGrey[700],
+                                fontSize: 15.0,
+                              ),
                             ),
-                            items: _metodosDePago.map((metodo) {
-                              return DropdownMenuItem(
-                                value: metodo['codigo'],
-                                child: Text(
-                                  metodo['nombre'],
-                                  style: TextStyle(fontSize: 14, color: Colors.black),  // Color negro para las opciones
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => InvoiceDetailScreen(invoice: invoice),
                                 ),
                               );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _metodoDePagoSeleccionado = _metodosDePago.firstWhere(
-                                  (metodo) => metodo['codigo'] == value,
-                                  orElse: () => {},
-                                );
-                              });
                             },
-                            style: TextStyle(fontSize: 14, color: Colors.black),  // Color negro para el texto seleccionado
-                            validator: (value) => value == null ? 'Seleccione un método de pago' : null,
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton.icon(
+                                  icon: Icon(Icons.visibility),
+                                  label: Text(
+                                    'Ver',
+                                    style: TextStyle(fontSize: 12.0), // Ajusta el tamaño de la fuente
+                                  ),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => InvoiceDetailScreen(invoice: invoice),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              Expanded(
+                                child: TextButton.icon(
+                                  icon: Icon(Icons.edit),
+                                  label: Text(
+                                    'Editar',
+                                    style: TextStyle(fontSize: 12.0), // Ajusta el tamaño de la fuente
+                                  ),
+                                  onPressed: () {
+                                    // Lógica para editar la factura
+                                    print('Editar ${invoice['numero_documento']}');
+                                  },
+                                ),
+                              ),
+                            Expanded(
+                              child: TextButton.icon(
+                                icon: Icon(Icons.delete),
+                                label: Text(
+                                  'Eliminar',
+                                  style: TextStyle(fontSize: 12.0), // Ajusta el tamaño de la fuente
+                                ),
+                                onPressed: () async {
+                                  final confirmDelete = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: Text('Confirmar eliminación'),
+                                      content: Text('¿Estás seguro de que quieres eliminar esta factura?'),
+                                      actions: [
+                                        TextButton(
+                                          child: Text('Cancelar'),
+                                          onPressed: () => Navigator.of(context).pop(false),
+                                        ),
+                                        TextButton(
+                                          child: Text('Eliminar'),
+                                          onPressed: () => Navigator.of(context).pop(true),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirmDelete ?? false) {
+                                    try {
+                                      // Eliminar factura
+                                      await deleteFactura(invoice['id']);
+
+                                      // Mostrar mensaje de éxito
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Factura eliminada correctamente'),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+
+                                      // Refrescar la lista de facturas
+                                      setState(() {
+                                        _facturas = fetchFacturas(); // Llama de nuevo a fetchFacturas para actualizar la lista
+                                      });
+                                    } catch (e) {
+                                      // Mostrar mensaje de error
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Error al eliminar la factura'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                              Expanded(
+                                child: TextButton.icon(
+                                  icon: Icon(Icons.check),
+                                  label: Text(
+                                    'Autorizar',
+                                    style: TextStyle(fontSize: 10.0), // Ajusta el tamaño de la fuente
+                                  ),
+                                  onPressed: () {
+                                    // Lógica para autorizar la factura
+                                    print('Autorizar ${invoice['numero_documento']}');
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          padding: EdgeInsets.all(8.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.only(
+                              bottomLeft: Radius.circular(12.0),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                spreadRadius: 2,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            '${invoice['estado']}',
+                            style: TextStyle(
+                              color: getColorForStatus(invoice['estado']),
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-
-              ExpansionTile(
-                  title: Row(
-                          children: [
-                            Icon(Icons.info_rounded, color: Colors.blue),
-                            SizedBox(width: 8),
-                            Text('Información Adicional'),
-                          ],
-                        ),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: TextFormField(
-                      controller: _informacionAdicionalController,
-                      decoration: InputDecoration(
-                        labelText: 'Información Adicional',
-                        border: OutlineInputBorder(),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-              
-              SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                            _showConfirmationDialog(); // Muestra el diálogo de confirmación
-                          }
-                        },
-                child: Text('Crear Factura'),
-              ),
-            ],
-          ),
-        ),
+                );
+              },
+            );
+          }
+        },
       ),
     );
   }
+
 }

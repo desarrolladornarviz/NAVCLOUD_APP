@@ -76,11 +76,11 @@ class _SelectCompanyScreenState extends State<SelectCompanyScreen> {
         title: Text(
           'Seleccionar Empresa',
           style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
         ),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Colors.blueGrey[900]
       ),
       body: isLoading
           ? Center(child: CircularProgressIndicator())

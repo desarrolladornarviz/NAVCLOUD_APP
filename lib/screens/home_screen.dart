@@ -44,84 +44,87 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<double> fetchFacturasTotal(String filter) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token') ?? '';
+ Future<double> fetchFacturasTotal(String filter) async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('access_token') ?? '';
 
-    try {
-      final response = await http.get(
-        Uri.parse('http://192.168.100.34:8000/api/v1/company/${widget.company?['id']}/documentos'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+  try {
+    final response = await http.get(
+      Uri.parse('http://192.168.100.34:8000/api/v1/company/${widget.company?['id']}/documentos'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
 
-      if (response.statusCode == 200) {
-        try {
-          final data = json.decode(response.body);
+    if (response.statusCode == 200) {
+      try {
+        final data = json.decode(response.body);
 
-          if (data is Map<String, dynamic> && data.containsKey('facturas')) {
-            List<dynamic> facturas = data['facturas'];
+        if (data is Map<String, dynamic> && data.containsKey('facturas')) {
+          List<dynamic> facturas = data['facturas'];
 
-            DateTime now = DateTime.now();
-            DateTime startDate;
-            DateTime endDate;
+          DateTime now = DateTime.now();
+          DateTime startDate;
+          DateTime endDate;
 
-            switch (filter) {
-              case 'Hoy':
-                startDate = DateTime(now.year, now.month, now.day); // Inicio del día actual
-                endDate = startDate.add(Duration(days: 1)); // Fin del día actual (inicio del próximo día)
-                break;
-              case 'Este mes':
-                startDate = DateTime(now.year, now.month, 1); // Inicio del mes actual
-                endDate = DateTime(now.year, now.month + 1, 1); // Inicio del próximo mes
-                break;
-              case 'Anual':
-                startDate = DateTime(now.year, 1, 1); // Inicio del año actual
-                endDate = DateTime(now.year + 1, 1, 1); // Inicio del próximo año
-                break;
-              default:
-                startDate = DateTime.now().subtract(Duration(days: 365)); // Default to last year
-                endDate = DateTime.now(); // Fin del rango por defecto
-                break;
-            }
-
-            // Filtrar las facturas según la fecha
-            facturas = facturas.where((factura) {
-              DateTime fechaFactura = DateTime.parse(factura['fecha'].toString());
-              return fechaFactura.isAfter(startDate) && fechaFactura.isBefore(endDate);
-            }).toList();
-
-            // Ordenar las facturas por ID en orden descendente
-            facturas.sort((a, b) {
-              int idA = int.parse(a['id'].toString());
-              int idB = int.parse(b['id'].toString());
-              return idB.compareTo(idA); // Ordena de forma descendente
-            });
-
-            // Calcular la suma total de los montos
-            double total = facturas.fold(0.0, (sum, factura) {
-              return sum + (double.tryParse(factura['total'].toString()) ?? 0.0);
-            });
-
-            return total;
-          } else {
-            throw Exception('Invalid JSON structure: Missing "facturas" key');
+          switch (filter) {
+            case 'Hoy':
+              startDate = DateTime(now.year, now.month, now.day); // Inicio del día actual
+              endDate = DateTime(now.year, now.month, now.day, 23, 59, 59); // Fin del día actual (23:59:59)
+              break;
+            case 'Este mes':
+              startDate = DateTime(now.year, now.month, 1); // Inicio del mes actual
+              endDate = DateTime(now.year, now.month + 1, 1); // Inicio del próximo mes
+              break;
+            case 'Anual':
+              startDate = DateTime(now.year, 1, 1); // Inicio del año actual
+              endDate = DateTime(now.year + 1, 1, 1); // Inicio del próximo año
+              break;
+            default:
+              startDate = DateTime.now().subtract(Duration(days: 365)); // Default: último año
+              endDate = DateTime.now(); // Fin del rango por defecto
+              break;
           }
-        } catch (e) {
-          print('Failed to parse JSON: $e');
-          throw Exception('Failed to parse JSON');
+
+          // Filtrar las facturas según la fecha (solo comparando fechas, sin hora)
+          facturas = facturas.where((factura) {
+            DateTime fechaFactura = DateTime.parse(factura['fecha'].toString());
+            DateTime onlyDateFactura = DateTime(fechaFactura.year, fechaFactura.month, fechaFactura.day);
+            return onlyDateFactura.isAtSameMomentAs(startDate) || (onlyDateFactura.isAfter(startDate) && onlyDateFactura.isBefore(endDate));
+          }).toList();
+
+          // Ordenar las facturas por ID en orden descendente
+          facturas.sort((a, b) {
+            int idA = int.parse(a['id'].toString());
+            int idB = int.parse(b['id'].toString());
+            return idB.compareTo(idA); // Ordena de forma descendente
+          });
+
+          // Calcular la suma total de los montos
+          double total = facturas.fold(0.0, (sum, factura) {
+            return sum + (double.tryParse(factura['total'].toString()) ?? 0.0);
+          });
+
+          // Limitar el total a 2 decimales
+          return double.parse(total.toStringAsFixed(2));
+        } else {
+          throw Exception('Estructura JSON inválida: falta la clave "facturas"');
         }
-      } else {
-        print('Failed to load documents: ${response.statusCode}');
-        throw Exception('Failed to load documents');
+      } catch (e) {
+        print('Error al analizar el JSON: $e');
+        throw Exception('Error al analizar el JSON');
       }
-    } catch (e) {
-      print('Error fetching facturas: $e');
-      throw Exception('Failed to load documents');
+    } else {
+      print('Error al cargar documentos: ${response.statusCode}');
+      throw Exception('Error al cargar documentos');
     }
+  } catch (e) {
+    print('Error al obtener facturas: $e');
+    throw Exception('Error al cargar documentos');
   }
+}
+
 
   Future<void> _logout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
@@ -137,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final companyEmail = company?['email'] ?? 'Unknown Email';
 
     return Scaffold(
-      appBar: AppBar(
+     appBar: AppBar(
         automaticallyImplyLeading: false,
         backgroundColor: Colors.white,
         title: Text(
@@ -148,6 +151,12 @@ class _HomeScreenState extends State<HomeScreen> {
             fontSize: 20,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout, color: Colors.black),
+            onPressed: () => _logout(context),
+          ),
+        ],
         elevation: 0,
       ),
       body: Container(
@@ -188,8 +197,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     _buildStoryIcon(
                       context,
-                      'Recibo',
-                      Icons.receipt_outlined,
+                      'Cliente',
+                      Icons.person_outlined,
                       () {
                         // Navegar a la pantalla de recibo
                       },

@@ -11,7 +11,7 @@ class CreateInvoiceScreen extends StatefulWidget {
   final int companyId;
   final Map<String, dynamic>? producto;
 
-  CreateInvoiceScreen({required this.companyId, this.producto});
+  CreateInvoiceScreen({required this.companyId, this.producto });
 
   @override
   _CreateInvoiceScreenState createState() => _CreateInvoiceScreenState();
@@ -299,28 +299,29 @@ Future<void> _createInvoice() async {
       }
 
       final body = json.encode({
-        'factura': {
-          'cliente_nombre': _razonSocialController.text,
-          'cliente_identificacion': _identificacionController.text,
-          'cliente_email': _correoController.text,
-          'cliente_direccion': _direccionController.text,
-          'cliente_telefono': _telefonoController.text,
-          'numero_documento': numeroDocumento,
-          'fecha': _fechaController.text,
-          'metodo_pago_id': _metodoDePagoSeleccionado?['id'] ?? '',
-          'observaciones': _informacionAdicionalController.text.isNotEmpty ? _informacionAdicionalController.text : null,
-          'cuenta_sri_id': widget.companyId, // Asegúrate de que widget.companyId sea el tipo correcto
-        },
-        'factura_detalle': _productos.map((producto) => {
-          'cantidad': double.tryParse(producto['cantidad'].toString()) ?? 0.0,
-          'producto_id': producto['id'].toString(),
-          'producto_nombre': producto['nombre'],
-          'precio_unitario': double.tryParse(producto['precio_unitario'].toString()) ?? 0.0,
-          'iva': double.tryParse(producto['iva']?.toString() ?? '0') ?? 0.0,
-          'ice': double.tryParse(producto['ice']?.toString() ?? '0') ?? 0.0,
-          'descuento_porcentaje': double.tryParse(producto['descuento']?.toString() ?? '0') ?? 0.0,
-        }).toList(),
-      });
+      'factura': {
+        'cliente_nombre': _razonSocialController.text,
+        'cliente_identificacion': _identificacionController.text,
+        'cliente_email': _correoController.text,
+        'cliente_direccion': _direccionController.text,
+        'cliente_telefono': _telefonoController.text,
+        'numero_documento': numeroDocumento,
+        'fecha': _fechaController.text,
+        'metodo_pago_id': _metodoDePagoSeleccionado?['id'] ?? '',
+        'observaciones': _informacionAdicionalController.text.isNotEmpty ? _informacionAdicionalController.text : null,
+        'cuenta_sri_id': widget.companyId, // Asegúrate de que widget.companyId sea el tipo correcto
+      },
+      'factura_detalle': _productos.map((producto) => {
+        'cantidad': double.tryParse(producto['cantidad'].toString()) ?? 0.0,
+        'producto_id': producto['id'].toString(),
+        'producto_nombre': producto['nombre'],
+        'precio_unitario': double.tryParse(producto['precio_unitario'].toString()) ?? 0.0,
+        'iva': producto['iva'] == '15%' ? 15.0 : 0.0,  // Verifica la asignación correcta de IVA
+        'ice': double.tryParse(producto['ice']?.toString() ?? '0') ?? 0.0,
+        'descuento_porcentaje': double.tryParse(producto['descuento']?.toString() ?? '0') ?? 0.0,
+      }).toList(),
+    });
+
 
       print('Request URL: http://192.168.100.34:8000/api/v1/factura-app/create');
       print('Request Headers:');

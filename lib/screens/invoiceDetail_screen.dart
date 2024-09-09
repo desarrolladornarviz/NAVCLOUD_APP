@@ -290,7 +290,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                           final precioUnitario = (detalle['precio_unitario'] as num).toDouble();
                           final cantidad = (detalle['cantidad'] as num).toInt();
                           final subtotal = (precioUnitario * cantidad).toStringAsFixed(2);
-                          final impuesto = (detalle['impuesto'] as num?)?.toDouble() ?? 0.0;
+                          final impuesto = (detalle['iva'] as num?)?.toDouble() ?? 0.0;
                           final precioConImpuesto = (precioUnitario + impuesto).toStringAsFixed(2);
 
                           return TableRow(
@@ -326,11 +326,13 @@ class InvoiceDetailScreen extends StatelessWidget {
                                 child: Padding(
                                   padding: const EdgeInsets.all(8.0),
                                   child: Text(
-                                    '\$${(precioUnitario * cantidad).toStringAsFixed(2)}',
+                                    // Calcular el total con el impuesto incluido
+                                    '\$${((precioUnitario + impuesto) * cantidad).toStringAsFixed(2)}',
                                     style: TextStyle(fontSize: 12),
                                   ),
                                 ),
                               ),
+
                             ],
                           );
                         }).toList(),
