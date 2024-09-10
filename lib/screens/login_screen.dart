@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'selectCompany_screen.dart';  // Asegúrate de que la ruta sea correcta
+import 'package:fact_nav/config.dart'; 
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -38,9 +39,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState?.validate() ?? false) {
       final email = _emailController.text;
       final password = _passwordController.text;
-
-      final url = Uri.parse('http://192.168.100.34:8000/api/v1/login');
-
+       final String apiUrl = '${Config.baseUrl}login';
+      final url = Uri.parse(apiUrl);
+  
       try {
         final response = await http.post(
           url,

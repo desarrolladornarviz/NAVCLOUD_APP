@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'clientes_screen.dart';
 import 'createProducts_screen.dart';
 import 'allDocuments_screen.dart';
+import 'package:fact_nav/config.dart'; 
 
 
 class CreateInvoiceScreen extends StatefulWidget {
@@ -46,6 +47,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> with SingleTi
   bool _isProductsExpanded = false;
   bool _isPaymentMethodExpanded = false;
   bool _isAdditionalInfoExpanded = false;
+  List<Map<String, dynamic>> _detallesProductos = [];
 
   List<Map<String, dynamic>> _puntosDeEmision = [];
   String? _puntoEmisionSeleccionado;
@@ -57,11 +59,46 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> with SingleTi
 
   
   @override
-  void initState() {
-    super.initState();
-    _fetchNumeroFacturaData();
-    _fetchMetodosDePago();
+void initState() {
+  super.initState();
+
+  // Si 'producto' no es null, entonces inicializamos los controladores con los valores de 'producto'
+ if (widget.producto != null) {
+  final producto = widget.producto!;
+  
+  // Rellenar los controladores con los datos de producto
+  _establecimientoController.text = producto['establecimiento'] ?? '';
+  _puntoEmisionController.text = producto['punto_emision'] ?? '';
+  _secuencialController.text = producto['secuencial'] ?? '';
+  _fechaController.text = producto['fecha'] ?? '';
+  _subtotalController.text = producto['subtotal']?.toString() ?? '';
+  _totalController.text = producto['total']?.toString() ?? '';
+  _razonSocialController.text = producto['cliente_nombre'] ?? '';
+  _direccionController.text = producto['direccion'] ?? '';
+  _telefonoController.text = producto['cliente_telefono'] ?? '';
+  _formaPagoController.text = producto['forma_pago'] ?? '';
+  _informacionAdicionalController.text = producto['informacion_adicional'] ?? '';
+  _correoController.text = producto['cliente_email'] ?? '';
+  _identificacionController.text = producto['cliente_identificacion'] ?? '';
+  _formaPagoController.text = producto['metodo_pago_id']?.toString()  ?? '';
+
+  // Cargar detalles de productos si existen
+  if (widget.producto != null) {
+  final producto = widget.producto!;
+
+  // Cargar detalles de productos si existen
+  if (producto['detalles'] != null && producto['detalles'] is List) {
+    setState(() {
+      _productos = List<Map<String, dynamic>>.from(producto['detalles']);
+    });
   }
+}
+
+}
+
+  _fetchNumeroFacturaData();
+  _fetchMetodosDePago();
+}
 
   @override
     void dispose() {
@@ -86,11 +123,12 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> with SingleTi
 Future<void> _fetchMetodosDePago() async {
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('access_token') ?? '';
-  final url = 'http://192.168.100.34:8000/api/v1/metodos';
+  final String apiUrl = '${Config.baseUrl}metodos';
+
 
   try {
     final response = await http.get(
-      Uri.parse(url),
+      Uri.parse(apiUrl),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -127,10 +165,11 @@ Future<void> _fetchMetodosDePago() async {
 Future<void> _fetchNumeroFacturaData() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token') ?? '';
-    final url = 'http://192.168.100.34:8000/api/v1/numero-factura/${widget.companyId}';
+    final String apiUrl = '${Config.baseUrl}numero-factura/${widget.companyId}';
+   
 
     final response = await http.get(
-      Uri.parse(url),
+      Uri.parse(apiUrl),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -246,11 +285,33 @@ void _removeProducto(Map<String, dynamic> producto) {
 
 double _calculateTotal() {
   double total = 0.0;
+
   for (var producto in _productos) {
-    total += producto['total'];
+    // Obtener y convertir los valores necesarios
+    final precioUnitario = double.tryParse(producto['precio_unitario']?.toString() ?? '') ?? 0.0;
+    final cantidad = double.tryParse(producto['cantidad']?.toString() ?? '') ?? 0.0;
+    final iva = double.tryParse(producto['iva']?.toString()  ?? '') ?? 0.0;
+
+    final totalProducto = double.tryParse(producto['total']?.toString() ?? '') ?? 0.0;
+    final subtotal12 = double.tryParse(producto['subtotal_12']?.toString() ?? '') ?? 0.0;
+
+    // Calcular el total para este producto
+    final productoTotal2 = totalProducto - subtotal12;
+    // Calcular el total para este producto
+    final productoTotal = (precioUnitario * cantidad) + iva;
+
+    if(totalProducto>0){
+      total += totalProducto ;
+
+    }else{
+          total += productoTotal ;
+    }
+    // Sumar el total del producto al total general
   }
+
   return total;
 }
+
 
 Future<void> _showConfirmationDialog() async {
     return showDialog<void>(
@@ -323,16 +384,16 @@ Future<void> _createInvoice() async {
     });
 
 
-      print('Request URL: http://192.168.100.34:8000/api/v1/factura-app/create');
-      print('Request Headers:');
-      print({
+      //print('Request URL: http://192.168.100.34:8000/api/v1/factura-app/create');
+     // print('Request Headers:');
+      /*print({
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
-      });
-      print('Request Body: $body');
-
+      })*/
+      //print('Request Body: $body');
+      final String apiUrl = '${Config.baseUrl}factura-app/create';
       final response = await http.post(
-        Uri.parse('http://192.168.100.34:8000/api/v1/factura-app/create'),
+        Uri.parse(apiUrl),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -381,7 +442,6 @@ Future<void> _createInvoice() async {
     }
   }
 }
-
 
   @override
   Widget build(BuildContext context) {
@@ -486,8 +546,8 @@ Future<void> _createInvoice() async {
                           }).toList(),
                           onChanged: (value) {
                             setState(() {
-                              _puntoEmisionSeleccionado = value;
-
+                              _establecimientoSeleccionado = value;
+                              // Solo actualiza el secuencial si el establecimiento es cambiado
                               final puntoSeleccionado = _puntosDeEmision.firstWhere(
                                 (punto) => punto['codigo'] == _puntoEmisionSeleccionado,
                                 orElse: () => {'secuencial_factura': 0},
@@ -497,7 +557,7 @@ Future<void> _createInvoice() async {
                             });
                           },
                           decoration: const InputDecoration(
-                            labelText: 'Punto de Emisión',
+                            labelText: 'Establecimiento',
                             border: OutlineInputBorder(),
                             contentPadding: EdgeInsets.symmetric(vertical: 12.0),
                           ),
@@ -562,7 +622,7 @@ Future<void> _createInvoice() async {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0), // Espaciado debajo del campo de fecha
+                  padding: const EdgeInsets.only(bottom: 16.0),
                   child: TextFormField(
                     controller: _fechaController,
                     decoration: InputDecoration(
@@ -605,7 +665,7 @@ Future<void> _createInvoice() async {
                       _scrollToNextSection();
                     },
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.blueGrey[800], // Color del texto
+                      foregroundColor: Colors.blueGrey[800],
                     ),
                     child: Text(
                       'Siguiente',
@@ -846,76 +906,82 @@ Future<void> _createInvoice() async {
           ),
           AnimatedCrossFade(
             firstChild: SizedBox.shrink(),
-            secondChild:  Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Productos:',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                                ..._productos.map((producto) => ListTile(
-                                  title: Text('${producto['nombre']}'),
-                                  subtitle: Text(
-                                    'Cantidad: ${producto['cantidad']} - Precio: \$${producto['precio_unitario'].toStringAsFixed(2)} - Total: \$${producto['total'].toStringAsFixed(2)}',
-                                  ),
-                                  trailing: IconButton(
-                                    icon: Icon(Icons.delete, color: Colors.red),
-                                    onPressed: () {
-                                      _removeProducto(producto);
-                                    },
-                                  ),
-                                )).toList(),
-                                SizedBox(height: 20),
-                                // Total del valor de los productos
-                                Text(
-                                  'Valor total: \$${_calculateTotal().toStringAsFixed(2)}',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                                SizedBox(height: 20),
-                                ElevatedButton(
-                                  onPressed: _selectProducto,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueGrey[900],
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: Text('Agregar Producto'),
-                                ),
-                              ],
-                            ),
-                          ),
-            crossFadeState: _isProductsExpanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
+            secondChild: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Productos:',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  ..._productos.map((producto) {
+                    final nombre = producto['producto_nombre'] ?? producto['nombre'] ?? '';
+                    final cantidad = producto['cantidad']?.toString() ?? '0';
+                    final precioUnitario = (producto['precio_unitario']?.toDouble() ?? 0.0).toStringAsFixed(2);
+                    final total = (producto['total']?.toDouble() ?? (producto['precio_unitario']?.toDouble() * producto['cantidad']+producto['iva']) ?? 0.0).toStringAsFixed(2);
+
+                    return ListTile(
+                      title: Text(nombre),
+                      subtitle: Text(
+                        'Cantidad: $cantidad - Precio: \$${precioUnitario} - Total: \$${total}',
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        onPressed: () {
+                          _removeProducto(producto);
+                        },
+                      ),
+                    );
+                  }).toList(),
+                  SizedBox(height: 20),
+                  // Total del valor de los productos
+                   Text(
+                  'Valor total con IVA: \$${_calculateTotal().toStringAsFixed(2)}',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                  SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _selectProducto,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueGrey[900],
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text('Agregar Producto'),
+                  ),
+                ],
+              ),
+            ),
+            crossFadeState:
+                _isProductsExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
             duration: Duration(milliseconds: 300),
           ),
           _isProductsExpanded
-         ? Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                  child: TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _isProductsExpanded = false;
-                        _isPaymentMethodExpanded = true;
-                      });
-                      _scrollToNextSection();
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.blueGrey[800], // Color del texto
-                    ),
-                    child: Text(
-                      'Siguiente',
-                      style: TextStyle(
-                        fontSize: 16.0,
-                        fontWeight: FontWeight.w600,
+              ? Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                    child: TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isProductsExpanded = false;
+                          _isPaymentMethodExpanded = true;
+                        });
+                        _scrollToNextSection();
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.blueGrey[800], // Color del texto
+                      ),
+                      child: Text(
+                        'Siguiente',
+                        style: TextStyle(
+                          fontSize: 16.0,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              )
+                )
               : SizedBox.shrink(),
         ],
       ),

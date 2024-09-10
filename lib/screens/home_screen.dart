@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import 'package:fact_nav/config.dart'; 
 import 'allDocuments_screen.dart';
 import 'createInvoice_screen.dart';
 import 'createDocuments_screen.dart'; // Importa la pantalla CreateDocumentsScreen
+import 'actividades_screen.dart';
+import 'menu_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic>? company;
@@ -47,10 +49,11 @@ class _HomeScreenState extends State<HomeScreen> {
  Future<double> fetchFacturasTotal(String filter) async {
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('access_token') ?? '';
-
+  final String apiUrl = '${Config.baseUrl}company/${widget.company?['id']}/documentos';
   try {
     final response = await http.get(
-      Uri.parse('http://192.168.100.34:8000/api/v1/company/${widget.company?['id']}/documentos'),
+      
+      Uri.parse(apiUrl),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -331,7 +334,54 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
+              
             ),
+          SizedBox(height: 16), // Espacio opcional arriba de la tarjeta
+            
+            // Tarjeta de tareas
+          Card(
+  elevation: 4,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(8),
+  ),
+  color: Colors.white,
+  child: InkWell(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ActividadesScreen(companyId: companyId,), // Navegar a ActividadesScreen
+        ),
+      );
+    },
+    child: Container(
+      padding: const EdgeInsets.all(16.0),
+      width: double.infinity, // Asegura que la tarjeta ocupe todo el ancho disponible
+      child: Row(
+        children: [
+          Icon(
+            Icons.list, // Ícono que desees usar
+            color: Colors.blue, // Color del ícono
+          ),
+          SizedBox(width: 8), // Espacio entre el ícono y el texto
+          Flexible(
+            child: Text(
+              'Ver todas las actividades',
+              style: TextStyle(
+                fontSize: 18, // Tamaño de fuente ajustado para visibilidad
+                color: Colors.blue, // Color de enlace típico
+                // Eliminado el subrayado del texto
+              ),
+              overflow: TextOverflow.ellipsis, // Agrega puntos suspensivos si el texto es muy largo
+            ),
+          ),
+        ],
+      ),
+    ),
+  ),
+)
+
+
          
           ],
         ),
@@ -341,31 +391,36 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: (index) {
           setState(() {
             _selectedIndex = index;
-            // Navegar a la página correspondiente
-            if (index == 0) {
-              Navigator.pushReplacementNamed(context, '/home');
-            } else if (index == 1) {
-              Navigator.pushReplacementNamed(context, '/menu');
+            switch (index) {
+              case 0:
+                Navigator.pushReplacementNamed(context, '/home');
+                break;
+              case 1:
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => MenuScreen(companyId: companyId),
+                  ),
+                );
+                break;
             }
           });
         },
-        selectedItemColor: Colors.green,
-        unselectedItemColor: Colors.black,
+        selectedItemColor: Colors.green, // Color del ícono y texto seleccionados
+        unselectedItemColor: Colors.black, // Color del ícono y texto no seleccionados
         items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
-            label: 'Home',
+            label: 'Inicio',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.menu),
-            label: 'Menu',
+            label: 'Menú',
           ),
         ],
       ),
     );
   }
-
-  
 Widget _buildStoryIcon(
   BuildContext context,
   String label,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fact_nav/config.dart'; 
 
 class CreateProductsScreen extends StatefulWidget {
   final int companyId;
@@ -61,10 +62,9 @@ class _CreateProductsScreenState extends State<CreateProductsScreen> {
   try {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token') ?? '';
-
-    final url = 'http://192.168.100.34:8000/api/v1/api-productos/${widget.companyId}';
+    final String apiUrl = '${Config.baseUrl}api-productos/${widget.companyId}';
     final response = await http.get(
-      Uri.parse(url),
+      Uri.parse(apiUrl),
       headers: {
         'Authorization': 'Bearer $token',
       },

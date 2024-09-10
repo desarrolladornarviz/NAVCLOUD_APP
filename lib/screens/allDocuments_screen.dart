@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'invoiceDetail_screen.dart'; // Asegúrate de importar el archivo correcto
+import 'createInvoice_screen.dart';
+import 'package:fact_nav/config.dart'; 
 
 class AllDocumentsScreen extends StatefulWidget {
   final int companyId;
@@ -55,14 +57,15 @@ class _AllDocumentsScreenState extends State<AllDocumentsScreen> {
   }
 }
 
+
 Future<void> _authorizeInvoice() async {
    final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('access_token') ?? '';
-    final url = 'http://192.168.100.34:8000/api/v1/autorizar';
+  final String apiUrl = '${Config.baseUrl}autorizar';
 
     try {
       final response = await http.post(
-        Uri.parse(url),
+        Uri.parse(apiUrl),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -335,22 +338,37 @@ Future<void> _authorizeInvoice() async {
                                           side: BorderSide(color: Colors.blueGrey[300]!, width: 1), // Borde del botón
                                         ),
                                       ),
-                                    if (canEdit)
-                                      TextButton.icon(
-                                        icon: Icon(Icons.edit, size: 14.0, color: Colors.blueGrey[800]),
-                                        label: Text(
-                                          'Editar',
-                                          style: TextStyle(fontSize: 12.0, color: Colors.blueGrey[800]),
-                                        ),
-                                        onPressed: () {
-                                          print('Editar ${invoice['numero_documento']}');
-                                        },
-                                        style: TextButton.styleFrom(
-                                          padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
-                                          backgroundColor: Colors.transparent,
-                                          side: BorderSide(color: Colors.blueGrey[300]!, width: 1),
-                                        ),
+                                   if (canEdit)
+                                    TextButton.icon(
+                                      icon: Icon(Icons.edit, size: 14.0, color: Colors.blueGrey[800]),
+                                      label: Text(
+                                        'Editar',
+                                        style: TextStyle(fontSize: 12.0, color: Colors.blueGrey[800]),
                                       ),
+                                      onPressed: () {
+                                        // Imprimir los datos que se van a pasar
+                                        print('Navigating to CreateInvoiceScreen with:');
+                                        print('companyId: ${widget.companyId}');
+                                        print('invoice: $invoice'); // Si invoice es un mapa o un objeto, esto imprimirá su representación en cadena
+
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => CreateInvoiceScreen(
+                                              companyId: widget.companyId, // Pasar el companyId
+                                              producto: invoice, // Pasar los datos de la factura
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+                                        backgroundColor: Colors.transparent,
+                                        side: BorderSide(color: Colors.blueGrey[300]!, width: 1),
+                                      ),
+                                    ),
+
+
                                     if (canDelete)
                                       TextButton.icon(
                                         icon: Icon(Icons.delete, size: 14.0, color: Colors.red[800]),

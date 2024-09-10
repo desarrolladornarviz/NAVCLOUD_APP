@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'createProducts_screen.dart'; // Asegúrate de importar la pantalla CreateProductsScreen
-
+import 'package:fact_nav/config.dart'; 
 class ProductsScreen extends StatefulWidget {
   final int companyId;
 
@@ -26,10 +26,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token') ?? '';
-
-      final url = 'http://192.168.100.34:8000/api/v1/api-productos/${widget.companyId}';
+      final String apiUrl = '${Config.baseUrl}api-productos/${widget.companyId}';
+    
       final response = await http.get(
-        Uri.parse(url),
+        Uri.parse(apiUrl),
         headers: {
           'Authorization': 'Bearer $token',
         },

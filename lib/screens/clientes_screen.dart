@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fact_nav/config.dart'; 
 
 class ClientesScreen extends StatefulWidget {
   final String companyId;
@@ -27,9 +28,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token') ?? '';
-
+      final String apiUrl = '${Config.baseUrl}api-clientes/${widget.companyId}';
       final response = await http.get(
-        Uri.parse('http://192.168.100.34:8000/api/v1/api-clientes/${widget.companyId}'),
+        Uri.parse(apiUrl),
         headers: {
           'Authorization': 'Bearer $token',
         },

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
-
+import 'package:fact_nav/config.dart'; 
 class SelectCompanyScreen extends StatefulWidget {
   @override
   _SelectCompanyScreenState createState() => _SelectCompanyScreenState();
@@ -22,8 +22,8 @@ class _SelectCompanyScreenState extends State<SelectCompanyScreen> {
   Future<void> _fetchCompanies() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
-
-    final url = Uri.parse('http://192.168.100.34:8000/api/v1/user-companies');
+    final String apiUrl = '${Config.baseUrl}user-companies';
+    final url = Uri.parse(apiUrl);
 
     try {
       final response = await http.get(
